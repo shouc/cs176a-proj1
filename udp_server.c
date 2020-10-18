@@ -58,12 +58,13 @@ struct t_info{
     struct sockaddr_in addr;
     int fd;
 };
+#define DEBUG
 
 #define update_timeout(sec, usec) \
     timeout.tv_sec = sec;\
     timeout.tv_usec = usec;\
-//    setsockopt(info->fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,\
-//    sizeof(timeout));/
+    setsockopt(info->fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,\
+    sizeof(timeout));
 
 void* handle_req(struct t_info* arg){
     struct t_info* info=(struct s_info*)arg;
@@ -71,6 +72,10 @@ void* handle_req(struct t_info* arg){
     struct timeval timeout;
     struct sockaddr cliaddr;
     int clisize = sizeof(cliaddr);
+#ifdef DEBUG
+    time_t t;
+    srand((unsigned) time(&t));
+#endif
 start_handle:
     // remove timeout
     update_timeout(0, 0)
@@ -79,7 +84,12 @@ start_handle:
         FAILED_TO_RECV
     }
 
-    int msg_len = atoi(_msg_len);
+    if (_msg_len[0] != '\5'){
+        printf("expecting msg len packet\n");
+        goto start_handle;
+    }
+
+    int msg_len = atoi(_msg_len + 1);
 
     // set timeout
     update_timeout(0, 500)
@@ -170,21 +180,46 @@ send_data:
         }
         failed_count++;
         char c_msg_len[100];
-        sprintf(c_msg_len, "%d", current_data_len);
-        if (sendto(info->fd, c_msg_len, strlen(c_msg_len), 0, &cliaddr, clisize) == -1){
-            printf("Failed write size.\n");
-            goto send_data;
-        }
-        if (counter != -1){
-            if (sendto(info->fd, send_buff + current_data_start_pos, current_data_len, 0, &cliaddr, clisize) == -1){
-                printf("Failed write x.\n");
+        sprintf(c_msg_len, "\5%d", current_data_len);
+#ifdef DEBUG
+        if (rand() % 10 != 1) {
+#endif
+            if (sendto(info->fd, c_msg_len, strlen(c_msg_len), 0, &cliaddr, clisize) == -1) {
+                printf("Failed write size.\n");
                 goto send_data;
             }
+#ifdef DEBUG
         } else {
-            if (sendto(info->fd, "\4", 1, 0, &cliaddr, clisize) == -1){
-                printf("Failed write eof.\n");
-                goto send_data;
+            printf("Didn't send size packet");
+        }
+#endif
+        if (counter != -1){
+#ifdef DEBUG
+            if (rand() % 10 != 1) {
+#endif
+                if (sendto(info->fd, send_buff + current_data_start_pos, current_data_len, 0, &cliaddr, clisize) ==
+                    -1) {
+                    printf("Failed write x.\n");
+                    goto send_data;
+                }
+#ifdef DEBUG
+            } else {
+                printf("Didn't send data packet");
             }
+#endif
+        } else {
+#ifdef DEBUG
+            if (rand() % 10 != 1) {
+#endif
+                if (sendto(info->fd, "\4", 1, 0, &cliaddr, clisize) == -1){
+                    printf("Failed write eof.\n");
+                    goto send_data;
+                }
+#ifdef DEBUG
+            } else {
+                printf("Didn't send eof packet");
+            }
+#endif
         }
 
 

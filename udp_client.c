@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <netdb.h>
+#include <time.h>
 
 #define error(msg) \
     printf(msg);\
@@ -19,11 +20,16 @@ const unsigned int MAX_LEN_PACKET = 1500;
     timeout.tv_usec = usec;\
     setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,\
     sizeof(timeout));
-
+#define DEBUG
 int main(int argc, char *argv[])
 {
     // check
 //    char server_addr_c[100] = "127.0.0.1";
+
+#ifdef DEBUG
+    time_t t;
+    srand((unsigned) time(&t));
+#endif
 
     char command[1024];
     printf("Enter command: ");
@@ -72,17 +78,31 @@ send_data:
     failed_count++;
 
     char c_msg_len[100]={0};
-    sprintf(c_msg_len, "%d", strlen(command));
+    // size packet
+    sprintf(c_msg_len, "\5%d", strlen(command));
     printf("%s %s", c_msg_len, command);
-    if (write(sock_fd, c_msg_len, strlen(c_msg_len)) == -1){
-        printf("Failed write size.\n");
-        goto send_data;
+#ifdef DEBUG
+    if (rand() % 3 != 1) {
+#endif
+        if (write(sock_fd, c_msg_len, strlen(c_msg_len)) == -1) {
+            printf("Failed write size.\n");
+            goto send_data;
+        }
+#ifdef DEBUG
+    } else {
+        printf("Didn't send size packet");
     }
-
-    if (write(sock_fd, command, strlen(command)) == -1){
-        printf("Failed write x.\n");
-        goto send_data;
+    if (rand() % 3 != 1){
+#endif
+        if (write(sock_fd, command, strlen(command)) == -1){
+            printf("Failed write x.\n");
+            goto send_data;
+        }
+#ifdef DEBUG
+    } else {
+        printf("Didn't send data packet");
     }
+#endif
 
     struct timeval timeout;
     update_timeout(1, 0)
@@ -110,7 +130,13 @@ start_handle:
             goto start_handle;
         }
 
-        int msg_len = atoi(_msg_len);
+        if (_msg_len[0] != '\5'){
+            printf("expecting msg len packet\n");
+            goto start_handle;
+        }
+
+        int msg_len = atoi(_msg_len + 1);
+
 
         // set timeout
         update_timeout(0, 500)
