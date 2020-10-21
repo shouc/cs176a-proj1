@@ -9,4 +9,4 @@ add_executable(tcp_server tcp_server.c)
 
 add_executable(udp_client udp_client.c)
 add_executable(udp_server udp_server.c)
-add_executable(udp_server_mt udp_server_multithread.c)
+add_executable(udp_server_st udp_server_single_thread.c)

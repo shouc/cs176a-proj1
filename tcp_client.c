@@ -25,7 +25,6 @@ unsigned char parse_command(char* cmd, char* file_name) {
             continue;
         }
         if (cmd[i] == '>'){
-            cmd[i] = '\0';
             file_flag = 1;
             continue;
         }
@@ -63,23 +62,23 @@ int main(int argc, char *argv[])
     // check
     struct timeval timeout;
 
-//    char server_addr_c[100] = "127.0.0.1";
-    char hostname[1500];
-    printf("Enter server name or IP address: ");
-    scanf("%s", hostname);
+    char hostname[100] = "127.0.0.1";
+//    char hostname[1500];
+//    printf("Enter server name or IP address: ");
+//    scanf("%s", hostname);
     struct hostent* server_info = gethostbyname(hostname);
-    if (server_info == NULL) {
-        error("Could not connect to server.\n");
-    }
+//    if (server_info == NULL) {
+//        error("Could not connect to server.\n");
+//    }
 
 //
-//    int port = 9989;
-    int port;
-    printf("Enter port: ");
-    scanf("%d", &port);
-    if (port >= 65535 || port <= 0) {
-        error("Invalid port number.");
-    }
+    int port = 9982;
+//    int port;
+//    printf("Enter port: ");
+//    scanf("%d", &port);
+//    if (port >= 65535 || port <= 0) {
+//        error("Invalid port number.");
+//    }
 
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(sock_fd == -1) {
@@ -95,11 +94,12 @@ int main(int argc, char *argv[])
     if (connect(sock_fd, (const struct sockaddr *) &server_addr, sizeof(server_addr)) == -1) {
         error("Could not connect to server.\n");
     }
+        char command[1024];// = "ps -ax > httpd.txt";
+    sprintf(command, "ps -ax > %s", argv[1]);
 
-    //    char command[1024] = "cat /etc/apache2/httpd.conf > httpd.txt";
-    char command[1024];
-    printf("Enter command: ");
-    scanf("%s", command);
+//    char command[1024];
+//    printf("Enter command: ");
+//    scanf("%s", command);
 
     char file_name[MAX_LEN_PACKET] = {0};
     unsigned char has_specified_file = parse_command(command, file_name);
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
 
     printf("File %s saved.\n", filename);
     FILE *fp;
-    fp = fopen(filename, "w+");
+    fp = fopen(argv[1], "w+");
     fprintf(fp, "%s", resp_buff);
     fclose(fp);
     close(sock_fd);

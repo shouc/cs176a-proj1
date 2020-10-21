@@ -60,17 +60,28 @@ unsigned char parse_command(char* cmd, char* file_name) {
 
 struct t_info{
     struct sockaddr_in addr;
-    int fd;
+    int new_sock_fd;
 };
 
-void* handle_req(void* arg){
-    struct t_info* info=(struct s_info*)arg;
+#define DEBUG
 
+
+void* handle_req(void* arg){
+#ifdef DEBUG
+    printf("arg at address %p", arg);
+#endif
+    struct t_info* info=(struct t_info*)arg;
+#ifdef DEBUG
+    printf("parents say %hu with fd %d\n", ntohs(info->addr.sin_port), info->new_sock_fd);
+#endif
     char command[MAX_LEN_PACKET] = {0};
-    if (read(info->fd, command, sizeof(command)) == -1){
-        printf("Failed to receive instructions from the client.");
+    if (read(info->new_sock_fd, command, sizeof(command)) == -1){
+        printf("Failed to receive instructions from the client\n");
         return NULL;
     }
+#ifdef DEBUG
+    printf("got sth from %hu with fd: %d\n", ntohs(info->addr.sin_port),  info->new_sock_fd);
+#endif
     system(command);
     int init_size = 16;
     char *send_buff = realloc(NULL, sizeof(char) * init_size);
@@ -90,11 +101,12 @@ void* handle_req(void* arg){
         fclose(file);
     }
     send_buff[cter++]='\0';
-    if (write(info->fd, send_buff, strlen(send_buff)) == -1){
-        printf("Failed to receive instructions from the client.\n");
+    if (write(info->new_sock_fd, send_buff, strlen(send_buff)) == -1){
+        printf("File transmission failed.\n");
     }
-    close(info->fd);
+    close(info->new_sock_fd);
     free(send_buff);
+    free(arg);
 }
 
 
@@ -127,21 +139,30 @@ int main(int argc, char *argv[]) {
 
     printf("server is running!\n");
 
+
     while (1){
         struct sockaddr_in client_addr = {0};
         socklen_t len = sizeof(client_addr);
         int new_sock_fd = accept(sock_fd, (struct sockaddr *) &client_addr, &len);
+#ifdef DEBUG
+        printf("accepted %hu with socket id %d\n", ntohs(client_addr.sin_port), new_sock_fd);
+#endif
         if (new_sock_fd == -1) {
-            printf("Failed to receive instructions from the client.");
+            printf("Failed to receive instructions from the client.2");
             continue;
         } else {
+#ifdef DEBUG
             printf("IP:%s, PORT:%d [connected]\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+#endif
         }
         pthread_t tid;
-        struct t_info args;
-        args.fd = new_sock_fd;
-        args.addr = client_addr;
-        pthread_create(&tid,NULL,handle_req,(void*)&args);
+        struct t_info* arg__ = malloc(sizeof(struct t_info));
+        arg__->new_sock_fd = new_sock_fd;
+        arg__->addr = client_addr;
+#ifdef DEBUG
+        printf("parent writes %hu -> fd %d\n",ntohs(client_addr.sin_port), arg__->new_sock_fd);
+#endif
+        pthread_create(&tid,NULL,handle_req,(void*)(arg__));
     }
 
     close(sock_fd);
