@@ -23,6 +23,7 @@ unsigned char parse_command(char* cmd, char* file_name) {
     unsigned char last_stmt_flag = 0;
     unsigned char file_flag = 0;
     char* tmp_dir = "> /tmp/output";
+    int fi = 0;
     for (int i = 0; i < MAX_LEN_PACKET; ++i) {
         if (cmd[i] == '\\'){
             last_stmt_flag = 1;
@@ -42,12 +43,17 @@ unsigned char parse_command(char* cmd, char* file_name) {
                         break;
                 }
             }
-            strncat(file_name, &cmd[i], 1);
+            char* nf = file_name + fi;
+            *nf = cmd[i];
+            fi++;
         }
         last_stmt_flag = 0;
     }
     if (file_flag == 0) {
         strcat(cmd, tmp_dir);
+    } else {
+        char* nf = file_name + fi;
+        *nf = '\0';
     }
     return file_flag;
 }
@@ -61,67 +67,34 @@ void* handle_req(void* arg){
     struct t_info* info=(struct s_info*)arg;
 
     char command[MAX_LEN_PACKET] = {0};
-    char file_name[MAX_LEN_PACKET];
     if (read(info->fd, command, sizeof(command)) == -1){
         printf("Failed to receive instructions from the client.");
         return NULL;
     }
-    unsigned char need_send_file = parse_command(command, file_name);
     system(command);
-    if (need_send_file){
-        int init_size = 16;
-        char *send_buff = realloc(NULL, sizeof(char) * init_size);
-        send_buff[0] = '\2'; // no file
-        int c;
-        int cter = 0;
-        while (file_name[cter] != '\0'){
-            send_buff[cter+1] = file_name[cter];
-            cter++;
-            if (cter+1 == init_size)
+    int init_size = 16;
+    char *send_buff = realloc(NULL, sizeof(char) * init_size);
+    int c;
+    int cter = 0;
+    FILE *file;
+
+    char file_name[MAX_LEN_PACKET] = {0};
+    parse_command(command, file_name);
+    file = fopen(file_name, "r");
+    if (file) {
+        while ((c = getc(file)) != EOF){
+            send_buff[cter++] = (char)c;
+            if (cter == init_size)
                 send_buff = realloc(send_buff, sizeof(char)*(init_size += 16));
         }
-        send_buff[++cter] = '\2';
-        cter++;
-        FILE *file;
-        file = fopen(file_name, "r");
-        if (file) {
-            while ((c = getc(file)) != EOF){
-                send_buff[cter++] = (char)c;
-                if (cter == init_size)
-                    send_buff = realloc(send_buff, sizeof(char)*(init_size += 16));
-            }
-            fclose(file);
-        }
-        send_buff[cter++]='\0';
-        if (write(info->fd, send_buff, strlen(send_buff)) == -1){
-            printf("Failed to send result to client.\n");
-        }
-        close(info->fd);
-        free(send_buff);
-    } else {
-        int init_size = 16;
-        char *send_buff = realloc(NULL, sizeof(char) * init_size);
-        send_buff[0] = '\3'; // no file
-        int c;
-        int cter = 1;
-        FILE *file;
-        char* filename = "/tmp/output";
-        file = fopen(filename, "r");
-        if (file) {
-            while ((c = getc(file)) != EOF){
-                send_buff[cter++] = (char)c;
-                if (cter == init_size)
-                    send_buff = realloc(send_buff, sizeof(char)*(init_size += 16));
-            }
-            fclose(file);
-        }
-        send_buff[cter++]='\0';
-        if (write(info->fd, send_buff, strlen(send_buff)) == -1){
-            printf("Failed to receive instructions from the client.\n");
-        }
-        close(info->fd);
-        free(send_buff);
+        fclose(file);
     }
+    send_buff[cter++]='\0';
+    if (write(info->fd, send_buff, strlen(send_buff)) == -1){
+        printf("Failed to receive instructions from the client.\n");
+    }
+    close(info->fd);
+    free(send_buff);
 }
 
 
