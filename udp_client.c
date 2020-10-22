@@ -1,6 +1,17 @@
 //
 // Created by Shou C on 10/8/20.
 //
+// Citations:
+// Converting hostname to IP from
+// https://stackoverflow.com/questions/3060950/how-to-get-ip-address-from-sock-structure-in-c
+// UDP timeout implementation from
+// https://stackoverflow.com/questions/13547721/udp-socket-set-timeout
+// Concept for UDP receiving infinite len message (same as TCP)
+// https://stackoverflow.com/questions/2333827/c-c-tcp-socket-class-receive-problem
+//
+// References:
+// Recv: https://man7.org/linux/man-pages/man2/recv.2.html
+
 
 #include <stdio.h>
 #include <sys/socket.h>
@@ -10,7 +21,7 @@
 #include <stdlib.h>
 #include <netdb.h>
 #include <time.h>
-#define RECV_SIZE 1024
+#define RECV_SIZE 1500
 #define error(msg) \
     printf(msg);\
     exit(0);
@@ -72,27 +83,27 @@ int main(int argc, char *argv[])
     srand((unsigned) time(&t));
 #endif
 
-//    char command[1024] = "ps -ax > p.txt";
-//    int port = 9237;
-    printf("Enter server name or IP address: ");
-    scanf("%s", hostname);
+    char command[1024] = "lsof > p.txt";
+    int port = 9998;
+//    printf("Enter server name or IP address: ");
+//    scanf("%s", hostname);
     struct hostent* server_info = gethostbyname(hostname);
     if (server_info == NULL) {
         error("Could not connect to server.\n");
     }
-    int port;
-    printf("Enter port: ");
-    scanf("%d", &port);
-    if (port >= 65535 || port <= 0) {
-        error("Invalid port number.");
-    }
-
-    char command[MAX_LEN_PACKET] = {0};
-    printf("Enter command: ");
-//    scanf("%s", command);
-    fgets(command, 2, stdin);
-    fgets(command, MAX_LEN_PACKET, stdin);
-    strtok(command, "\n");
+//    int port;
+//    printf("Enter port: ");
+//    scanf("%d", &port);
+//    if (port >= 65535 || port <= 0) {
+//        error("Invalid port number.");
+//    }
+//
+//    char command[MAX_LEN_PACKET] = {0};
+//    printf("Enter command: ");
+////    scanf("%s", command);
+//    fgets(command, 2, stdin);
+//    fgets(command, MAX_LEN_PACKET, stdin);
+//    strtok(command, "\n");
 
 
     int sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -119,7 +130,7 @@ int main(int argc, char *argv[])
     unsigned int failed_count = 0;
 send_data: // start to send command
     failed_count++;
-    if (failed_count == 4){
+    if (failed_count == 10){
         // all three attempts are used
         printf("Failed to send command. Terminating.");
         close(sock_fd);
@@ -187,7 +198,9 @@ send_data: // start to send command
     int init_size = RECV_SIZE;
     int cter = 0;
     char* resp_buff = realloc(NULL, sizeof(char) * init_size);
-
+    char* filename = argv[1];// has_specified_file ? file_name : "output.txt";
+    FILE *fp;
+    fp = fopen(filename, "w+");
     while (1){
         int _failed_count = 0;
 start_handle: // receive output
@@ -200,15 +213,14 @@ start_handle: // receive output
             return 0;
         }
         // set timeout to 500ms
-        update_timeout(0, 2500)
-
+        update_timeout(0, 500000)
         // receive RECV_SIZE bytes of data
-        int bytes_read = recv(sock_fd, resp_buff + cter, RECV_SIZE, 0);
+        int bytes_read = recv(sock_fd, resp_buff, RECV_SIZE, 0);
         if (bytes_read == -1){
             time_t ltime; /* calendar time */
             ltime=time(NULL); /* get current cal time */
-            printf("%s",asctime( localtime(&ltime) ) );
-            printf("Failed to receive instructions from the client.");
+            printf("%s\n",asctime( localtime(&ltime) ) );
+            printf("Failed to receive instructions from the client.\n");
             goto start_handle;
         }
         printf("got %d + RECV_SIZE\n", cter);
@@ -217,6 +229,9 @@ start_handle: // receive output
         if (write(sock_fd, "ACK", sizeof("ACK")) == -1){
             error("Failed to send ack. Terminating.\n");
         }
+        resp_buff[bytes_read] = '\0';
+        fprintf(fp, "%s", resp_buff);
+
         printf("acked %d + RECV_SIZE\n", cter);
 
         cter += bytes_read;
@@ -224,28 +239,25 @@ start_handle: // receive output
             // read enough data
             break;
         }
-        if (cter == sizeof(resp_buff) - 1){
-            // buffer is not enough
-            resp_buff = realloc(resp_buff, sizeof(char)*(init_size += RECV_SIZE));
-        }
+//        if (cter == sizeof(resp_buff) - 1){
+//            // buffer is not enough
+//            resp_buff = realloc(resp_buff, sizeof(char)*(init_size += RECV_SIZE));
+//        }
     }
 
     if (strlen(resp_buff) < 1){
         free(resp_buff);
+        close(sock_fd);
         error("Did not receive response.\n");
     }
 
 
     // save the file
-    char* filename = has_specified_file ? file_name : "output.txt";
     printf("File %s saved.\n", filename);
-    FILE *fp;
-    fp = fopen(filename, "w+");
-    fprintf(fp, "%s", resp_buff);
     fclose(fp);
-    free(resp_buff);
 
     // close the socket
     close(sock_fd);
+    free(resp_buff);
     return 0;
 }

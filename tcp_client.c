@@ -1,6 +1,15 @@
 //
 // Created by Shou C on 10/8/20.
 //
+// Citations:
+// Converting hostname to IP from
+// https://stackoverflow.com/questions/3060950/how-to-get-ip-address-from-sock-structure-in-c
+// TCP receiving infinite len message
+// https://stackoverflow.com/questions/2333827/c-c-tcp-socket-class-receive-problem
+//
+// References:
+// Recv: https://man7.org/linux/man-pages/man2/recv.2.html
+
 
 #include <stdio.h>
 #include <sys/socket.h>
@@ -57,8 +66,7 @@ unsigned char parse_command(char* cmd, char* file_name) {
     timeout.tv_usec = usec;\
     setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,\
     sizeof(timeout));
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]){
     // check
     struct timeval timeout;
 
@@ -80,6 +88,7 @@ int main(int argc, char *argv[])
 //        error("Invalid port number.");
 //    }
 
+    // make file descriptor
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(sock_fd == -1) {
         error("Could not connect to server.\n");
@@ -91,47 +100,59 @@ int main(int argc, char *argv[])
     bcopy((char *)server_info->h_addr,
           (char *)&server_addr.sin_addr.s_addr,
           server_info->h_length);
+    // connect to server
     if (connect(sock_fd, (const struct sockaddr *) &server_addr, sizeof(server_addr)) == -1) {
         error("Could not connect to server.\n");
     }
-        char command[1024];// = "ps -ax > httpd.txt";
+    char command[1024];// = "ps -ax > httpd.txt";
     sprintf(command, "ps -ax > %s", argv[1]);
 
-//    char command[1024];
+//    char command[MAX_LEN_PACKET];
 //    printf("Enter command: ");
 //    scanf("%s", command);
 
+
+    // get the file name from command (e.g. ps -ax > a.txt => a.txt)
     char file_name[MAX_LEN_PACKET] = {0};
     unsigned char has_specified_file = parse_command(command, file_name);
 
-
+    // write the command
     if (write(sock_fd, command, sizeof(command)) == -1){
         error("Failed to send command. Terminating.\n");
     }
 
+    // initialize buffer
     int init_size = 32;
     int cter = 0;
     char* resp_buff = realloc(NULL, sizeof(char) * init_size);
     ssize_t bytes_read = 1;
     while (bytes_read > 0) {
+        // receive 32 bytes each time
         bytes_read = recv(sock_fd, resp_buff + cter, 32, 0);
         if (bytes_read == -1) break;
         cter += bytes_read;
         if (cter == sizeof(resp_buff) - 1){
+            // buffer used up
             resp_buff = realloc(resp_buff, sizeof(char)*(init_size += 32));
         }
     }
-
+    // buffer is empty
     if (strlen(resp_buff) < 1){
-        error("Did not receive response.\n");
+        printf("Did not receive response.\n");
+        free(resp_buff);
+        return 0;
     }
+
+    // if no file name specified, use output.txt
     char* filename = has_specified_file ? file_name : "output.txt";
 
     printf("File %s saved.\n", filename);
     FILE *fp;
     fp = fopen(argv[1], "w+");
     fprintf(fp, "%s", resp_buff);
+    // cleanup
     fclose(fp);
     close(sock_fd);
+    free(resp_buff);
     return 0;
 }

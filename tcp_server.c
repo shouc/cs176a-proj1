@@ -1,6 +1,11 @@
 //
 // Created by Shou C on 10/8/20.
 //
+//
+// Citations:
+// Use of pthread in TCP
+// https://jameshfisher.com/2017/02/28/tcp-server-pthreads/
+
 
 #include <stdio.h>
 #include <sys/socket.h>

@@ -1,10 +1,10 @@
 //
 // Created by Shou C on 10/8/20.
 //
-
+//
 // Citations:
 // The map implementation for mapping connections to its pipe is copied from
-// https://github.com/rxi/map/tree/master/src
+// https://github.com/rxi/map/
 // Concepts of event-based system borrowed partly from
 // https://linuxprograms.wordpress.com/2008/01/23/piping-in-threads/
 //
@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <assert.h>
-#define RECV_SIZE 1024
+#define RECV_SIZE 1500
 
 // https://github.com/rxi/map/tree/master/src
 // used it for mapping connections to its pipe
@@ -332,7 +332,7 @@ struct t_info{
 
 map_str_t conn_to_fd;
 
-#define DEBUG
+//#define DEBUG
 
 
 #define update_timeout(sec, usec) \
@@ -385,7 +385,7 @@ start_handle:
     char command[MAX_LEN_PACKET] = {0};
 
     // timeout 500ms for fd
-    update_timeout(0, 500)
+    update_timeout(0, 500000)
     if (rv < 1) {
         printf("timeout");
         // timeout
@@ -417,7 +417,7 @@ start_handle:
     char file_name[MAX_LEN_PACKET] = {0};
     parse_command(command, file_name);
 
-    int init_size = 16;
+    int init_size = 1024;
     char *send_buff = realloc(NULL, sizeof(char) * init_size);
     int cter;
     system(command);
@@ -429,7 +429,7 @@ start_handle:
         while ((c = getc(file)) != EOF){
             send_buff[cter++] = (char)c;
             if (cter == init_size)
-                send_buff = realloc(send_buff, sizeof(char)*(init_size += 16));
+                send_buff = realloc(send_buff, sizeof(char)*(init_size += 1024));
         }
         fclose(file);
     }
@@ -461,6 +461,7 @@ send_len: // send data length
 #endif
     printf("%s writes %s\n", info->key, c_msg_len);
     // send the data len
+
     if (sendto(info->fd, c_msg_len, strlen(c_msg_len), 0, &info->addr,
                sizeof(info->addr)) == -1) {
         printf("Failed write size.\n");
@@ -499,7 +500,6 @@ send_len: // send data length
         unsigned int current_data_start_pos = index * chunk_size;
         unsigned int current_data_len = counter == 0 ? send_size % chunk_size : chunk_size;
         failed_count = 0;
-        printf("sending %d+%d\n", current_data_start_pos, current_data_len);
 
 send_data:
         failed_count++;
@@ -520,6 +520,10 @@ send_data:
 #endif
         printf("%s writes data\n", info->key);
         // start to write data
+        time_t ltime; /* calendar time */
+        ltime=time(NULL); /* get current cal time */
+        printf("send at %d-%d at %s",current_data_start_pos, current_data_len,
+                asctime( localtime(&ltime) ) );
         if (sendto(info->fd, send_buff + current_data_start_pos, current_data_len, 0, &info->addr,
                    sizeof(info->addr)) ==
             -1) {
@@ -548,6 +552,8 @@ send_data:
             printf("Failed to recv ack.\n");
             goto send_data;
         }
+        printf("got ack at %d-%d at %s",current_data_start_pos, current_data_len,
+               asctime( localtime(&ltime) ) );
         // compare to str 'ACK'
         if (!(ack_msg[0] == 'A' && ack_msg[1] == 'C' && ack_msg[2] == 'K')){
             printf("Failed to recv ack.\n");

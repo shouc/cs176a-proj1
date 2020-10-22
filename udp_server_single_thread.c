@@ -64,7 +64,7 @@ struct t_info{
     struct sockaddr_in addr;
     int fd;
 };
-#define DEBUG
+//#define DEBUG
 
 
 #define update_timeout(sec, usec) \
@@ -74,7 +74,7 @@ struct t_info{
     sizeof(timeout));
 
 void* handle_req(struct t_info* arg){
-    struct t_info* info=(struct s_info*)arg;
+    struct t_info* info=(struct t_info*)arg;
     char _msg_len[MAX_LEN_PACKET];
     struct timeval timeout;
     struct sockaddr cliaddr;
