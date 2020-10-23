@@ -25,13 +25,13 @@
 #define error(msg) \
     printf(msg);\
     exit(0);
-const unsigned int MAX_LEN_PACKET = 1500;
+#define MAX_LEN_PACKET 1500
 #define update_timeout(sec, usec) \
     timeout.tv_sec = sec;\
     timeout.tv_usec = usec;\
     setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,\
     sizeof(timeout));
-#define DEBUG
+//#define DEBUG
 
 
 unsigned char parse_command(char* cmd, char* file_name) {

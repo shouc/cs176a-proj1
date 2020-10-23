@@ -22,7 +22,7 @@
 #define error(msg) \
     printf(msg);\
     exit(0);
-const unsigned int MAX_LEN_PACKET = 1500;
+#define MAX_LEN_PACKET 1500
 unsigned char parse_command(char* cmd, char* file_name) {
     unsigned char last_stmt_flag = 0;
     unsigned char file_flag = 0;
