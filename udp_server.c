@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <assert.h>
-#define RECV_SIZE 1500
+#define RECV_SIZE 1024
 
 // https://github.com/rxi/map/tree/master/src
 // used it for mapping connections to its pipe
@@ -281,7 +281,7 @@ const char *map_next_(map_base_t *m, map_iter_t *iter) {
     printf(msg);\
     exit(0);
 
-const unsigned int MAX_LEN_PACKET = 1500;
+#define MAX_LEN_PACKET 1500
 
 
 unsigned char parse_command(char* cmd, char* file_name) {
@@ -344,7 +344,7 @@ map_str_t conn_to_fd;
 
 #define get_internal_msg_len \
     if (read(info->read_fd, __internal_msg_len, 9) == -1){\
-        printf("Failed to receive instructions from the client1.");\
+        printf("Unexpected: failed to read.\n");\
         goto start_handle;\
     }\
     __internal_msg_len_i = atoi(__internal_msg_len);
@@ -363,7 +363,7 @@ void* handle_req(void*  arg){
     int failed_count = 0;
 start_handle:
     failed_count++;
-    if (failed_count == 4){
+    if (failed_count == 5){
         // all three attempts are used
         printf("Failed to receive instructions from the client.");
         goto cleanup;
@@ -374,34 +374,40 @@ start_handle:
     // read command size
     char _msg_len[MAX_LEN_PACKET];
     if (read(info->read_fd, _msg_len, __internal_msg_len_i) == -1){
+#ifdef DEBUG_PRINT
         printf("Failed to receive instructions from the client.");
+#endif
         goto cleanup;
     }
 
     // convert command size to int
     int msg_len = atoi(_msg_len);
-    printf("%d", msg_len);
 
     char command[MAX_LEN_PACKET] = {0};
 
     // timeout 500ms for fd
     update_timeout(0, 500000)
     if (rv < 1) {
+#ifdef DEBUG_PRINT
         printf("timeout");
+#endif
         // timeout
         goto start_handle;
     }
     get_internal_msg_len
     // read the command
     if (read(info->read_fd, command, __internal_msg_len_i) == -1){
-        assert(0);
-        printf("Failed to receive instructions from the client1.");
+#ifdef DEBUG_PRINT
+        printf("Failed to receive instructions from the client.");
+#endif
         goto start_handle;
     }
 
     // check command size against strlen(command)
     if (strlen(command) != msg_len){
-        printf("Failed to receive instructions from the client2.");
+#ifdef DEBUG_PRINT
+        printf("Failed to receive instructions from the client.");
+#endif
         goto start_handle;
     }
 
@@ -409,7 +415,9 @@ start_handle:
     // ack the command
     if (sendto(info->fd, (const char *) "ACK", sizeof("ACK"), 0, &info->addr,
                sizeof(info->addr)) == -1) {
+#ifdef DEBUG_PRINT
         printf("Failed to send ack. Terminating.\n");
+#endif
         goto cleanup;
     }
 
@@ -447,7 +455,7 @@ start_handle:
     failed_count = 0;
 send_len: // send data length
     failed_count++;
-    if (failed_count == 4){
+    if (failed_count == 5){
         // used up all attempts
         printf("File transmission failed");
         goto cleanup_with_buff;
@@ -459,15 +467,21 @@ send_len: // send data length
 #ifdef DEBUG
     if (rand() % 10 != 1) {
 #endif
+#ifdef DEBUG_PRINT
     printf("%s writes %s\n", info->key, c_msg_len);
+#endif
     // send the data len
 
     if (sendto(info->fd, c_msg_len, strlen(c_msg_len), 0, &info->addr,
                sizeof(info->addr)) == -1) {
+#ifdef DEBUG_PRINT
         printf("Failed write size.\n");
+#endif
         goto send_len;
     }
+#ifdef DEBUG_PRINT
     printf("size: %d\n", send_size);
+#endif
 #ifdef DEBUG
     } else {
         printf("Didn't send size packet");
@@ -481,18 +495,24 @@ send_len: // send data length
     update_timeout(1, 0)
     if (rv < 1) {
         // timeout
+#ifdef DEBUG_PRINT
         printf("timeout3\n");
+#endif
         goto send_len;
     }
     get_internal_msg_len
     // receive ack
     if (read(info->read_fd, ack_msg, __internal_msg_len_i) == -1){
+#ifdef DEBUG_PRINT
         printf("Failed to recv ack.\n");
+#endif
         goto send_len;
     }
     // compare to str 'ACK'
     if (!(ack_msg[0] == 'A' && ack_msg[1] == 'C' && ack_msg[2] == 'K')){
+#ifdef DEBUG_PRINT
         printf("Failed to recv ack.\n");
+#endif
         goto send_len;
     }
 
@@ -503,31 +523,34 @@ send_len: // send data length
 
 send_data:
         failed_count++;
-        if (failed_count > 1){
-            printf("failed %d th for %d+%d\n", failed_count, current_data_start_pos, current_data_len);
-        }
-        if (failed_count == 4){
+        if (failed_count == 5){
             // all attempts used
+#ifdef DEBUG_PRINT
             time_t ltime; /* calendar time */
             ltime=time(NULL); /* get current cal time */
             printf("%s",asctime( localtime(&ltime) ) );
-            printf("File transmission failed\n");
+#endif
+            printf("File transmission failed.\n");
             goto cleanup_with_buff;
         }
 
 #ifdef DEBUG
         if (rand() % 10 != 1) {
 #endif
+#ifdef DEBUG_PRINT
         printf("%s writes data\n", info->key);
         // start to write data
         time_t ltime; /* calendar time */
         ltime=time(NULL); /* get current cal time */
         printf("send at %d-%d at %s",current_data_start_pos, current_data_len,
                 asctime( localtime(&ltime) ) );
+#endif
         if (sendto(info->fd, send_buff + current_data_start_pos, current_data_len, 0, &info->addr,
                    sizeof(info->addr)) ==
             -1) {
+#ifdef DEBUG_PRINT
             printf("Failed write data.\n");
+#endif
             goto send_data;
         }
 #ifdef DEBUG
@@ -552,12 +575,15 @@ send_data:
             printf("Failed to recv ack.\n");
             goto send_data;
         }
+#ifdef DEBUG_PRINT
         printf("got ack at %d-%d at %s",current_data_start_pos, current_data_len,
                asctime( localtime(&ltime) ) );
+#endif
         // compare to str 'ACK'
         if (!(ack_msg[0] == 'A' && ack_msg[1] == 'C' && ack_msg[2] == 'K')){
+#ifdef DEBUG_PRINT
             printf("Failed to recv ack.\n");
-            printf("7\n");
+#endif
             goto send_data;
         }
         index++;
@@ -573,16 +599,16 @@ cleanup:
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
-        error("Please specify a port number");
+        error("Please specify a port number.\n");
     }
-
     int port = atoi(argv[1]);
     if (port < 0 || port > 65535) {
-        error("Incorrect Port");
+        error("Invalid port number.\n");
     }
     int sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock_fd == -1) {
-        error("Failed to create a socket channel");
+        assert(0);
+        error("Failed to create a socket channel\n");
     }
 
     struct sockaddr_in server_addr = {0};
@@ -590,14 +616,16 @@ int main(int argc, char *argv[]) {
     server_addr.sin_port = htons(port);
     server_addr.sin_addr.s_addr = INADDR_ANY;
     if (bind(sock_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) == -1){
+        assert(0);
         error("Failed to bind.\n");
     }
 
     int one = 5;
     setsockopt(sock_fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
 
-
+#ifdef DEBUG_PRINT
     printf("server is runningz!\n");
+#endif
 
     map_init(&conn_to_fd);
 
@@ -616,8 +644,9 @@ int main(int argc, char *argv[]) {
 
         if (bytes_read == -1) {
             close(sock_fd);
-            printf("failed to receive");
-//            return 0;
+            assert(0);
+            printf("Socket has been closed\n");
+            return 0;
         }
         char key[100];
         sprintf(key, "%s:%d", inet_ntoa(inc_client_addr.sin_addr), inc_client_addr.sin_port);
@@ -629,22 +658,30 @@ int main(int argc, char *argv[]) {
     char new_data[MAX_LEN_PACKET + 9];\
     sprintf(new_data, "%09d%s", bytes_read, data);
             make_content
+#ifdef DEBUG_PRINT
             printf("write to pipe %s: %s\n", key, new_data);
+#endif
             int k = write(*fd, new_data, bytes_read + 9);
         } else {
             int new_fd[2];
-            if (pipe(new_fd) < 0)
-                printf("failed to create pipe");
+            if (pipe(new_fd) < 0){
+                assert(0);
+                printf("Failed to create pipe\n");
+            }
             map_set(&conn_to_fd, key, new_fd[1]);
             make_content
+#ifdef DEBUG_PRINT
             printf("new conn: %s\n", key);
+#endif
             pthread_t tid;
             struct t_info* args = malloc(sizeof(struct t_info));
             args->fd = sock_fd;
             args->read_fd = new_fd[0];
             args->addr = inc_client_addr;
             args->key = key;
+#ifdef DEBUG_PRINT
             printf("write to pipe %s: %s\n", key, new_data);
+#endif
             pthread_create(&tid, NULL, handle_req, (void*)args);
             int k = write(new_fd[1], new_data, bytes_read + 9);
         }

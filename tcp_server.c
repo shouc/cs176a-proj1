@@ -68,7 +68,7 @@ struct t_info{
     int new_sock_fd;
 };
 
-#define DEBUG
+//#define DEBUG
 
 
 void* handle_req(void* arg){
@@ -117,17 +117,17 @@ void* handle_req(void* arg){
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
-        error("Please specify a port number");
+        error("Please specify a port number\n");
     }
 
     int port = atoi(argv[1]);
     if (port < 0 || port > 65535) {
-        error("Incorrect Port");
+        error("Invalid port number");
     }
 
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd == -1) {
-        error("Failed to create a socket channel");
+        error("Failed to create a socket channel\n");
     }
 
     struct sockaddr_in server_addr = {0};
@@ -141,9 +141,6 @@ int main(int argc, char *argv[]) {
     if (listen(sock_fd, 5) == -1) {
         error("Failed to listen.\n");
     }
-
-    printf("server is running!\n");
-
 
     while (1){
         struct sockaddr_in client_addr = {0};

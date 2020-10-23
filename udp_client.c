@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <netdb.h>
 #include <time.h>
-#define RECV_SIZE 1500
+#define RECV_SIZE 1024
 #define error(msg) \
     printf(msg);\
     exit(0);
@@ -31,7 +31,7 @@ const unsigned int MAX_LEN_PACKET = 1500;
     timeout.tv_usec = usec;\
     setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,\
     sizeof(timeout));
-//#define DEBUG
+#define DEBUG
 
 
 unsigned char parse_command(char* cmd, char* file_name) {
@@ -76,34 +76,34 @@ unsigned char parse_command(char* cmd, char* file_name) {
 int main(int argc, char *argv[])
 {
     // check
-    char hostname[100] = "127.0.0.1";
+    char hostname[100]; // = "127.0.0.1";
 
 #ifdef DEBUG
     time_t t;
     srand((unsigned) time(&t));
 #endif
 
-    char command[1024] = "lsof > p.txt";
-    int port = 9998;
-//    printf("Enter server name or IP address: ");
-//    scanf("%s", hostname);
+//    char command[1024] = "lsof > p.txt";
+//    int port = 9998;
+    printf("Enter server name or IP address: ");
+    scanf("%s", hostname);
     struct hostent* server_info = gethostbyname(hostname);
     if (server_info == NULL) {
         error("Could not connect to server.\n");
     }
-//    int port;
-//    printf("Enter port: ");
-//    scanf("%d", &port);
-//    if (port >= 65535 || port <= 0) {
-//        error("Invalid port number.");
-//    }
-//
-//    char command[MAX_LEN_PACKET] = {0};
-//    printf("Enter command: ");
-////    scanf("%s", command);
-//    fgets(command, 2, stdin);
-//    fgets(command, MAX_LEN_PACKET, stdin);
-//    strtok(command, "\n");
+    int port;
+    printf("Enter port: ");
+    scanf("%d", &port);
+    if (port >= 65535 || port <= 0) {
+        error("Invalid port number.");
+    }
+
+    char command[MAX_LEN_PACKET] = {0};
+    printf("Enter command: ");
+//    scanf("%s", command);
+    fgets(command, 2, stdin);
+    fgets(command, MAX_LEN_PACKET, stdin);
+    strtok(command, "\n");
 
 
     int sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -130,9 +130,9 @@ int main(int argc, char *argv[])
     unsigned int failed_count = 0;
 send_data: // start to send command
     failed_count++;
-    if (failed_count == 10){
+    if (failed_count == 5){
         // all three attempts are used
-        printf("Failed to send command. Terminating.");
+        printf("Failed to send command. Terminating.\n");
         close(sock_fd);
         return 0;
     }
@@ -145,7 +145,6 @@ send_data: // start to send command
 #endif
         // write the command size
         if (write(sock_fd, c_msg_len, strlen(c_msg_len)) == -1) {
-            printf("Failed write size.\n");
             goto send_data;
         }
 #ifdef DEBUG
@@ -156,7 +155,6 @@ send_data: // start to send command
 #endif
         // write the command
         if (write(sock_fd, command, strlen(command)) == -1){
-            printf("Failed write x.\n");
             goto send_data;
         }
 #ifdef DEBUG
@@ -170,12 +168,16 @@ send_data: // start to send command
     // receive ACK\0
     char ack_msg[4] = {0};
     if (recv(sock_fd, ack_msg, 4, 0) == -1){
+#ifdef DEBUG_PRINT
         printf("Failed to recv ack.\n");
+#endif
         goto send_data;
     }
     // compare chars received with chars A C K
     if (!(ack_msg[0] == 'A' && ack_msg[1] == 'C' && ack_msg[2] == 'K')){
+#ifdef DEBUG_PRINT
         printf("Failed to recv ack.\n");
+#endif
         goto send_data;
     }
     // send command successfully after here
@@ -197,19 +199,18 @@ send_data: // start to send command
     // initialize buffer
     int init_size = RECV_SIZE;
     int cter = 0;
-    char* resp_buff = realloc(NULL, sizeof(char) * init_size);
-    char* filename = argv[1];// has_specified_file ? file_name : "output.txt";
+    char resp_buff[MAX_LEN_PACKET];
+    char* filename = has_specified_file ? file_name : "output.txt";
     FILE *fp;
     fp = fopen(filename, "w+");
     while (1){
         int _failed_count = 0;
 start_handle: // receive output
         _failed_count++;
-        if (_failed_count == 4){
+        if (_failed_count == 5){
             // three attempts used
             printf("File transmission failed");
             close(sock_fd);
-            free(resp_buff);
             return 0;
         }
         // set timeout to 500ms
@@ -217,23 +218,26 @@ start_handle: // receive output
         // receive RECV_SIZE bytes of data
         int bytes_read = recv(sock_fd, resp_buff, RECV_SIZE, 0);
         if (bytes_read == -1){
+#ifdef DEBUG_PRINT
             time_t ltime; /* calendar time */
             ltime=time(NULL); /* get current cal time */
             printf("%s\n",asctime( localtime(&ltime) ) );
             printf("Failed to receive instructions from the client.\n");
+#endif
             goto start_handle;
         }
+#ifdef DEBUG_PRINT
         printf("got %d + RECV_SIZE\n", cter);
-
+#endif
         // acknowledge data
         if (write(sock_fd, "ACK", sizeof("ACK")) == -1){
             error("Failed to send ack. Terminating.\n");
         }
         resp_buff[bytes_read] = '\0';
         fprintf(fp, "%s", resp_buff);
-
+#ifdef DEBUG_PRINT
         printf("acked %d + RECV_SIZE\n", cter);
-
+#endif
         cter += bytes_read;
         if (cter >= msg_len){
             // read enough data
@@ -246,18 +250,16 @@ start_handle: // receive output
     }
 
     if (strlen(resp_buff) < 1){
-        free(resp_buff);
         close(sock_fd);
-        error("Did not receive response.\n");
+        error("File transmission failed.\n");
     }
 
 
     // save the file
-    printf("File %s saved.\n", filename);
+    printf("\nFile %s saved.\n", filename);
     fclose(fp);
 
     // close the socket
     close(sock_fd);
-    free(resp_buff);
     return 0;
 }
